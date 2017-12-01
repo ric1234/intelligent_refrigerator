@@ -5,9 +5,7 @@ import time
 
 import no_args as ic
 
-#ic.main('Cropped00.jpg')
-
-threadLock = threading.Lock()
+tensorLock = threading.Lock()
 exitFlag = 0
 
 class myThread (threading.Thread):
@@ -24,10 +22,10 @@ class myThread (threading.Thread):
 def print_time(threadName):
    if exitFlag:
       threadName.exit()
-   threadLock.acquire()
+   tensorLock.acquire()
    print("Success1")
    ic.main('Cropped01.jpg')
-   threadLock.release()
+   tensorLock.release()
 
 class NotmyThread (threading.Thread):
    def __init__(self, threadID, name, counter):
@@ -43,10 +41,10 @@ class NotmyThread (threading.Thread):
 def print_timer(threadName):
    if exitFlag:
       threadName.exit()
-   threadLock.acquire()
+   tensorLock.acquire()
    print("Success2")
    ic.main('Cropped11.jpg')
-   threadLock.release()
+   tensorLock.release()
 # Create new threads
 thread1 = myThread(1, "Thread-1", 1)
 thread2 = NotmyThread(2, "Thread-2", 2)
