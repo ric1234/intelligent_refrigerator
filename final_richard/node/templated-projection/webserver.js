@@ -53,15 +53,23 @@ http.createServer(function(request, response){
     	}
 else if(path=="/img3")
 	{
-	console.log("request recieved");
-		response.writeHead(200, {"Content-Type": "text/plain"});
+		var img = fs.readFileSync('images/pic03.jpg');
+     		response.writeHead(200, {'Content-Type': 'image/jpg' });
+     response.end(img, 'binary');
+    	}
+else if(path=="/picfridge")
+	{
+	console.log("request for picture recieved");
+		
 
 		fs.readFile('fridge_pic.html', function(err, my_file)
 		{
 			if(err){
 			throw err};
+			response.writeHead(200, {"Content-Type": "text/plain"});
 			response.write(my_file);
 			response.end();
+			
 		});
         console.log("")
     	}

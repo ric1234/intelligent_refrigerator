@@ -4,6 +4,7 @@
 	templated.co @templatedco
 	Released for free under the Creative Commons Attribution 3.0 license (templated.co/license)
 -->
+<!-- File edited by team of Richard Noronha, Tejas Shanbhag, Riya Biswas-->
 <html>
 	<head>
 		<meta charset="utf-8" />
@@ -27,10 +28,10 @@
 		   
 		}
 
-		function scanFridge()
+		function snapFridge()
 		{
 		   xmlhttp = new XMLHttpRequest();
-		   xmlhttp.open("GET","http://192.168.141.143:8001/img3", true);
+		   xmlhttp.open("GET","http://192.168.141.143:8001/picfridge", true);
 		   xmlhttp.onreadystatechange=function(){
 			 if (xmlhttp.readyState==4 && xmlhttp.status==200){
 			   string=xmlhttp.responseText;
@@ -77,11 +78,11 @@
 								<img src="http://192.168.141.143:8001/img1" alt="Pic 01" />
 							</div>
 							<header>
-								<h3>Scan it</h3>
+								<h3>Click a picture</h3>
 							</header>
-							<p>Do you want to know what is in your fridge?
+							<p>Do you want to check out the latest image of the fridge?
 							<footer>
-								<button class="button" onclick="scanFridge()">Display image of fridge</button>
+								<button class="button" onclick="snapFridge()">Display image of fridge</button>
 							</footer>
 						</article>
 						<article>
