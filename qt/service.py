@@ -10,6 +10,7 @@ from PyQt5 import QtCore, QtGui, QtWidgets
 import datetime
 import amqpsend as amqp
 import web as wb
+import my_client as co
 class Ui_service(object):
     def setupUi(self, service):
         service.setObjectName("service")
@@ -84,6 +85,9 @@ class Ui_service(object):
         timer = QtCore.QTimer()
         timer.timeout.connect(update_label)
         timer.start(1000)  # every 1000 milliseconds
+        abc=0
+        abc=self.pushButton.clicked.connect(co.coap)
+        print (abc)
         self.pushButton_2.clicked.connect(amqp.rabbit)
         self.pushButton_3.clicked.connect(Ui_service.fridgedata)
         self.retranslateUi(service)
@@ -98,6 +102,8 @@ class Ui_service(object):
         self.pushButton_4.setText(_translate("service", "Back"))
         self.label.setText(_translate("service", "TIME HERE"))
         self.label_2.setText(_translate("service", "Hello Amazon Dash User! Please select a service."))
+        
+
         
     def fridgedata(self):
         Ui_service.window=wb.MainWindow()
@@ -114,7 +120,14 @@ def update_label():
     global current_time
     current_time = str(datetime.datetime.now().strftime("%m-%d-%y %H:%M:%S"))
     ui.label.setText(current_time)
-
+def info(string):
+    msg = QtWidgets.QMessageBox()
+    msg.setMaximumSize(QtCore.QSize(281, 16777215))
+    msg.setGeometry(QtCore.QRect(510, 330, 581, 281))
+    msg.setInformativeText(string)
+    #msg.setStandardButtons(QMessageBox.Ok)
+    msg.exec_()
+    
 if __name__ == "__main__":
     import sys
     app = QtWidgets.QApplication(sys.argv)

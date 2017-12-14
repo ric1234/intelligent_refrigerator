@@ -134,6 +134,7 @@ class Ui_MainWindow(object):
         ui1.setupUi(self.MainWindow1)
         self.MainWindow1.show()
         MainWindow.close()
+        
      
 def fail():
     msg = QtWidgets.QMessageBox()
