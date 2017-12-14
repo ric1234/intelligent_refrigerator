@@ -1,0 +1,23 @@
+Parse and format link headers according to RFC 5988 "Web Linking".
+
+Usage (assuming a suitable headers object in the environment):
+
+	>>> headers['Link'] = str(LinkHeader([Link("http://example.com/foo", rel="self"),
+	...                                   Link("http://example.com", rel="up")]))
+	>>> headers['Link']
+	'<http://example.com/foo>; rel=self, <http://example.com>; rel=up'
+	>>> parse(headers['Link'])
+	LinkHeader([Link('http://example.com/foo', rel='self'), Link('http://example.com', rel='up')])
+
+Blank and missing values roundtrip correctly:
+
+	>>> format_link(parse('</s/1>; obs; if="core.s"; foo=""'))
+	'<</s/1>; obs; if=core.s; foo="">'
+
+Conversions to and from json-friendly list-based structures are also provided:
+
+	>>> parse(headers['Link']).to_py()
+	[['http://example.com/foo', [['rel', 'self']]], ['http://example.com', [['rel', 'up']]]]
+	>>> str(LinkHeader([['http://example.com/foo', [['rel', 'self']]],
+	...                 ['http://example.com', [['rel', 'up']]]]))
+	'<http://example.com/foo>; rel=self, <http://example.com>; rel=up'
