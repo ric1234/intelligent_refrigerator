@@ -1,7 +1,7 @@
 This project is a joint collaboration of Richard Norhonna, Riya Biswas and Tejas Shanbhag for ECEN 5053-002 Embedded Interface and Design course at University of Colorado Boulder
 
 
-The project is an intelligent refrigerator which reorders stuff required from the amazon DRS automatically without much interference of the user.
+The project is an intelligent refrigerator which reorders stuff required from the amazon DRS automatically without much interference of the user.  
 The project consists of three raspberry pi's forming three machines, one handling it's computations at the fridge, one stays as device with the user and the last one acts as a cloud-gateway.
 The rpi at the fridge has a camera interfaced and is placed inside the fridge and uses machine learning(tensor flow) and Image processing(Open Cv) to estimate the kind and amount of dara.
 The same rpi then forms a table and transmits the data to a webserver which is an html interface.
