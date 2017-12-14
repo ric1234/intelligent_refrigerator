@@ -1,3 +1,13 @@
+'''This file has the method of making the dictionary'''
+
+#How to use the datastructure
+'''
+import data_present as dat
+foodItems = []
+foodItems.append(itemDetected)
+dat.addToDictionary(foodItems)
+'''
+
 exampleFoodItems = ['egg', 'banana', 'tomato', 'egg']
 
 def addToDictionary(foods):
@@ -10,7 +20,7 @@ def addToDictionary(foods):
             
     #counter['soy']+=10
     #print(str(counter))
-    return (str(counter))
+    return (counter)
     #Write counter to a file
     #print(foods)
 

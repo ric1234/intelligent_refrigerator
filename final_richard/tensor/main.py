@@ -1,4 +1,11 @@
-
+'''
+Authors: Richard Noronha, Tejas Shanbhag, Riya Biswas
+Project: Intelligent Refrigerator
+Script : Python3
+Description:
+    This file is the main Python file for the refrigerator RPi3 which running raspbian OS 4.9.59-v7+ kernel
+    The file contains all the modules including OpenCV, Tensor flow, 
+'''
 # import the necessary packages
 from picamera.array import PiRGBArray
 from picamera import PiCamera
@@ -8,7 +15,6 @@ import sys
 sys.path.append('/usr/local/lib/python3.5/site-packages') 
 import numpy as np
 import argparse
-
 import cv2
 
 from matplotlib import pyplot as plt
@@ -27,15 +33,13 @@ camera.resolution=(1024,1024)  #1024,768   #This line if removed gives the full 
 camera.capture(rawCapture, format="bgr")
 image = rawCapture.array
 
-cv2.imwrite("full.jpg", image)
- 
+cv2.imwrite("../node/images/pic03.jpg", image)
 print("Full image captured")
-
-
 
 #Segmenting an image
 #Divide the image into 4 equal parts
-image=cv2.imread("full.jpg")
+#For demonstration purposes the full sized image is cropped into  only 4 parts
+image=cv2.imread("../node/images/pic03.jpg")
 roi_image_00 = image[0:511, 0:511]
 roi_image_01 = image[0:511, 512:1023]
 roi_image_10 = image[511:1023, 0:512]
@@ -45,18 +49,10 @@ cv2.imwrite("Cropped01.jpg",roi_image_01)
 cv2.imwrite("Cropped10.jpg",roi_image_10)
 cv2.imwrite("Cropped11.jpg",roi_image_11)
 
-
-
 #include Tensor flow library file
-sys.path.append('/home/pi/Desktop/Experiments/')
+sys.path.append('../Experiments')
 import no_args as ic
 
-#ic.main('Cropped00.jpg')
-itemDetected=ic.main('Cropped01.jpg')
-#print("I found a %s" %(itemDetected))
-
-#ic.main('Cropped10.jpg')
-#ic.main('Cropped11.jpg')
 
 ##############################################
 #Use multithreading approach to obtain the image
@@ -112,28 +108,23 @@ for tName in threadList:
 # Wait for all threads to complete
 for t in threads:
    t.join()
-   
+
+#foodItems is a list
 data_to_send=dat.addToDictionary(foodItems)
-print(data_to_send)
+#data_to_send is a dictionary
+print(str(data_to_send))
 
 import dataWriter as dataWriter
-dataWriter.create_text(data_to_send)
+dataWriter.create_text(str(data_to_send))
+
+sys.path.append('../node')
+import generator as gen_html
+gen_html.create_HTML_file(data_to_send)
+
 print ("Exiting Main Thread")
 
-#################################################
-
-
-
-#How to use the datastructure
 '''
-import data_present as dat
-foodItems = []
-foodItems.append(itemDetected)
-dat.addToDictionary(foodItems)
+if __name__ == '__main__':
+    capture_image()
 '''
 
-'''
-cv2.waitKey(27)
-cv2.destroyAllWindows()
-'''
-#############################################################
