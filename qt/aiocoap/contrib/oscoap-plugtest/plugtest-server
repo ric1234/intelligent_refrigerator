@@ -1,0 +1,369 @@
+#!/usr/bin/env python3
+
+# This file is part of the Python aiocoap library project.
+#
+# Copyright (c) 2012-2014 Maciej Wasilak <http://sixpinetrees.blogspot.com/>,
+#               2013-2014 Christian Amsüss <c.amsuess@energyharvesting.at>
+#
+# aiocoap is free software, this file is published under the MIT license as
+# described in the accompanying LICENSE file.
+
+"""A server suitable for running the OSCOAP plug test series against it
+
+See https://github.com/EricssonResearch/OSCOAP for the test suite
+description."""
+
+import sys
+import asyncio
+import logging
+import argparse
+
+import aiocoap
+import aiocoap.oscoap as oscoap
+import aiocoap.error as error
+from aiocoap.util.cli import AsyncCLIDaemon
+import aiocoap.resource as resource
+
+from plugtest_common import *
+
+class PleaseUseOscoap(error.ConstructionRenderableError):
+    code = aiocoap.UNAUTHORIZED
+    message = "This is an OSCOAP plugtest, please use option %d"%aiocoap.numbers.optionnumbers.OptionNumber.OBJECT_SECURITY
+
+
+class PlugtestResource(resource.Resource):
+    options = {}
+    expected_options = {}
+
+    def render_get(self, request):
+        reference = aiocoap.Message(**self.expected_options)
+        if request.opt.observe is not None and 'observe' not in self.expected_options:
+            # workaround for test 4 hitting on Hello1
+            reference.opt.observe = request.opt.observe
+        additional_verify("Request options as expected", reference.opt, request.opt)
+
+        return aiocoap.Message(payload=self.message.encode('ascii'), **self.options)
+
+class Hello(PlugtestResource):
+    options = {'content_format': 0}
+
+    expected_options = {} # Uri-Path is stripped by the site
+
+    message = "Hello World!"
+
+Hello1 = Hello # same, just registered with the site for protected access
+
+class Hello2(Hello):
+    expected_options = {'uri_query': ['first=1']}
+
+    options = {'etag': b"\x2b", **Hello1.options}
+
+class Hello3(Hello):
+    expected_options = {'accept': 0}
+
+    options = {'max_age': 5, **Hello1.options}
+
+class Observe(PlugtestResource, aiocoap.interfaces.ObservableResource):
+    expected_options = {'observe': 0}
+    options = {}
+
+    message = "1"
+
+    async def add_observation(self, request, serverobservation):
+        async def keep_entertained():
+            def say(text):
+                return aiocoap.Message(mtype=aiocoap.CON, code=aiocoap.CONTENT, payload=text.encode('utf8'))
+            await asyncio.sleep(2)
+            serverobservation.trigger(say("Zwei"))
+            await asyncio.sleep(2)
+            serverobservation.trigger(say("Drei"))
+            await asyncio.sleep(2)
+            serverobservation.trigger(say("und aus!"))
+            await asyncio.sleep(2)
+            serverobservation.trigger(aiocoap.Message(
+                mtype=aiocoap.CON, code=aiocoap.INTERNAL_SERVER_ERROR,
+                payload="server is bored with client".encode('utf8')
+                ))
+        t = asyncio.Task(keep_entertained())
+        serverobservation.accept(t.cancel)
+
+class Hello6(resource.Resource):
+    async def render_post(self, request):
+        additional_verify("Request options as expected", aiocoap.Message(content_format=0).opt, request.opt)
+        additional_verify("Request payload as expected", request.payload, b"J")
+
+        return aiocoap.Message(code=aiocoap.CREATED, location_path=["hello", "6"], location_query=["first=1"])
+
+class Hello7(resource.Resource):
+    async def render_put(self, request):
+        if request.opt.if_none_match:
+            print("This looks like test 8b")
+            additional_verify("Request options as expected", aiocoap.Message(content_format=0, if_none_match=True).opt, request.opt)
+            additional_verify("Request payload as expected", request.payload, b"\x8a")
+
+            return aiocoap.Message(code=aiocoap.PRECONDITION_FAILED)
+        else:
+            print("This looks like test 7b")
+            additional_verify("Request options as expected", aiocoap.Message(content_format=0, if_match=[b"{"]).opt, request.opt)
+            additional_verify("Request payload as expected", request.payload, b"z")
+
+            return aiocoap.Message(code=aiocoap.CHANGED)
+
+class DeleteResource(resource.Resource):
+    async def render_delete(self, request):
+        additional_verify("Request options empty as expected", aiocoap.Message().opt, request.opt)
+        return aiocoap.Message(code=aiocoap.DELETED)
+
+
+class SeqnoManager(resource.ObservableResource):
+    def __init__(self, contexts):
+        super().__init__()
+        self.contexts = contexts
+
+    def render_get(self, request):
+        the_context, = self.contexts.values()
+
+        if not hasattr(the_context, "_SeqnoManager__patched"):
+            the_context.__patched = True
+            the_context._store = lambda oldstore=the_context._store: (oldstore(), self.updated_state())
+
+        # this direct access is technically outside the interface for a
+        # SecurityContext, but then again, there isn't one yet
+        text = """Next sequence number I will use: %d\n""" % the_context.sender_sequence_number
+        text += """I've seen all sequence numbers up to including %d%s.""" % (
+                the_context.recipient_replay_window.seen[0],
+                ", and also %s" % the_context.recipient_replay_window.seen[1:] if len(the_context.recipient_replay_window.seen) > 1 else ""
+                )
+        return aiocoap.Message(payload=text.encode('utf-8'), content_format=0)
+
+    def render_put(self, request):
+        try:
+            number = int(request.payload.decode('utf8'))
+        except (ValueError, UnicodeDecodeError):
+            raise aiocoap.error.BadRequest("Only numeric values are accepted.")
+
+        new_context = get_security_context(number, 'server')
+        self.contexts[new_context.recipient_id] = new_context
+
+        return aiocoap.Message(code=aiocoap.CHANGED)
+
+class ProtectedSite(resource.Site):
+    """A site that requires OSCOAP protection for resources added with the
+    :meth:`add_protected_resource` method.
+
+    All resources will be shown in :meth:`get_resources_as_linkheader`."""
+
+    def __init__(self, *, contexts=[], loggername="oscoap-site"):
+        super().__init__();
+        self.log = logging.getLogger(loggername)
+
+        self.contexts = {c.recipient_id: c for c in contexts}
+
+        self._inner_site = resource.Site()
+
+        self.__stored_serverobservation = None
+
+    def add_protected_resource(self, path, resource):
+        self._inner_site.add_resource(path, resource)
+
+    def get_resources_as_linkheader(self):
+        import link_header
+
+        links = super().get_resources_as_linkheader().links
+
+        for l in self._inner_site.get_resources_as_linkheader().links:
+            l.attr_pairs.append(('osc', None))
+            links.append(l)
+
+        return link_header.LinkHeader(links)
+
+    async def add_observation(self, request, serverobservation):
+        # this is a workaround i'd prefer to get rid of by changing add_observation
+
+        # FIXME it is not carefully checked that the created observations can
+        # never survive when the successful decryption stage is never reached.
+        # probably, if there's an object-security option and it doesn't, the
+        # request will always return an unsuccessful code -- but i'm not 100%
+        # sure.
+
+        class OSCOAPObservation:
+            def __init__(self, serverobservation):
+                self._serverobservation = serverobservation
+                self._original_response_context = None
+                self._original_request_seqno = None
+                self._accepted = False
+                self._cancelled = False
+
+                # preliminarily accept; can't decide that later in the current
+                # implementation of observation in the Protocol, and i don't want to do
+                # the request decoding twice or early.
+                serverobservation.accept(lambda: self.deregister("Transport observation was cancelled", True))
+
+            def deregister(self, reason, coming_from_transport=False):
+                if self._cancelled:
+                    return
+
+                self._cancelled = True
+                if self._accepted:
+                    self._canceller()
+
+                if not coming_from_transport:
+                    self._serverobservation.deregister("OSCOAP resource said: " + reason)
+
+            def accept(self, canceller):
+                if self._cancelled:
+                    # see ServerObservation.accept note
+                    asyncio.get_event_loop().call_soon(canceller)
+                else:
+                    self._accepted = True
+                    self._canceller = canceller
+
+            def trigger(self, response=None):
+                assert self._original_response_context is not None, "Trigger called before rendering"
+
+                if response is None:
+                    self._serverobservation.trigger(aiocoap.Message(code=aiocoap.INTERNAL_SERVER_ERROR))
+                    # the original request won't be decoded any more, and
+                    # OSCOAPObservation is not integrated deeply enough to
+                    # store the decoded request
+                    raise ValueError("Can not use empty triggering with OSCOAP")
+
+                protected, _ = self._original_response_context.protect(response, self._original_request_seqno, can_use_bitflip=False)
+
+                self._serverobservation.trigger(protected)
+
+        if request.opt.object_security is not None:
+            oscobs = OSCOAPObservation(serverobservation)
+
+            assert self.__stored_serverobservation is None
+            self.__stored_serverobservation = (request, oscobs)
+        else:
+            await super().add_observation(request, serverobservation)
+
+    async def render(self, request):
+        if self.__stored_serverobservation is not None:
+            _stored_request, oscobs = self.__stored_serverobservation
+            assert _stored_request is request
+            self.__stored_serverobservation = None
+
+        try:
+            recipient_id = oscoap.verify_start(request)
+        except oscoap.NotAProtectedMessage:
+            try:
+                return await super().render(request)
+            except error.NotFound:
+                # this will be shown for everything that is not in the
+                # nonprotected resources, to ensure that information about
+                # resources' existence is not leaked if they hide from the
+                # .well-known/core.
+                raise PleaseUseOscoap()
+
+        try:
+            sc = self.contexts[recipient_id]
+        except KeyError:
+            if request.mtype == aiocoap.CON:
+                raise error.Unauthorized("Security context not found")
+            else:
+                return aiocoap.message.NoResponse
+
+        try:
+            unprotected, seqno = sc.unprotect(request)
+        except oscoap.ReplayError:
+            if request.mtype == aiocoap.CON:
+                raise error.BadRequest("Replay protection failed")
+            else:
+                return aiocoap.message.NoResponse
+        except oscoap.DecodeError:
+            if request.mtype == aiocoap.CON:
+                raise error.BadOption("Failed to decode COSE")
+            else:
+                return aiocoap.message.NoResponse
+        except oscoap.ProtectionInvalid as e:
+            if request.mtype == aiocoap.CON:
+                raise error.BadRequest("Decryption failed")
+            else:
+                return aiocoap.message.NoResponse
+
+        self.log.debug("Message was decrypted successfully. Request is to %s (%s)", unprotected.opt.uri_path, unprotected)
+
+        if unprotected.opt.observe is not None:
+            await super().add_observation(unprotected, oscobs)
+            if not oscobs._accepted:
+                await self._inner_site.add_observation(unprotected, oscobs)
+            if not oscobs._accepted:
+                oscobs.deregister("OSCOAP resource does not provide observation")
+            else:
+                oscobs._original_response_context = sc
+                oscobs._original_request_seqno = seqno
+
+        # FIXME the render doesn't provide a way to provide context in the
+        # sense of "who is the user"; obviously, the render interface needs
+        # rework
+        try:
+            try:
+                response = await self._inner_site.render(unprotected)
+            except error.NotFound:
+                response = await super().render(unprotected)
+        except error.RenderableError as err:
+            response = err.to_message()
+        except Exception as err:
+            response = aiocoap.Message(code=aiocoap.INTERNAL_SERVER_ERROR)
+            self.log.error("An exception occurred while rendering a protected resource: %r"%err)
+            self.log.exception(err)
+
+        if response.code is None:
+            # FIXME: this duplicates the default setting in aiocoap.protocol
+            response.code = aiocoap.CONTENT
+
+        self.log.debug("Will encrypt message as response: %s", response)
+
+        protected_response, _ = sc.protect(response, seqno)
+
+        # FIXME who should trigger this?
+        sc._store()
+
+        return protected_response
+
+class PlugtestSite(ProtectedSite):
+    def __init__(self, regular_context):
+        super().__init__(contexts=[regular_context])
+
+        self.add_resource(('.well-known', 'core'), resource.WKCResource(self.get_resources_as_linkheader))
+        self.add_resource(('hello', 'coap'), Hello())
+        self.add_protected_resource(('hello', '1'), Hello1())
+        self.add_protected_resource(('hello', '2'), Hello2())
+        self.add_protected_resource(('hello', '3'), Hello3())
+        self.add_protected_resource(('observe',), Observe())
+        self.add_protected_resource(('hello', '6'), Hello6())
+        self.add_protected_resource(('hello', '7'), Hello7())
+        self.add_protected_resource(('test',), DeleteResource())
+
+        self.add_resource(('sequence-numbers',), SeqnoManager(self.contexts))
+
+class PlugtestServerProgram(AsyncCLIDaemon):
+    async def start(self):
+        p = argparse.ArgumentParser(description="Server for the OSCOAP plug test. Requires a test number to be present.")
+        p.add_argument("contextdir", nargs="?", help="Directory name where to persist sequence numbers")
+        p.add_argument('--verbose', help="Increase log level", action='store_true')
+        p.add_argument('--server-address', help="Address to bind to", metavar="HOST", default="::")
+        p.add_argument('--server-port', help="Port to bind the server context to", metavar="PORT", default=aiocoap.COAP_PORT, type=int)
+        opts = p.parse_args()
+
+        if opts.verbose:
+            logging.root.setLevel(logging.DEBUG)
+        else:
+            logging.root.setLevel(logging.WARNING)
+
+
+        regular_context = get_security_context(0, 'server', opts.contextdir)
+
+        self.context = await aiocoap.Context.create_server_context(PlugtestSite(regular_context), bind=(opts.server_address, opts.server_port))
+
+        print("Plugtest server ready.")
+        sys.stdout.flush() # the unit tests might wait abundantly long for this otherwise
+
+    async def shutdown(self):
+        await self.context.shutdown()
+
+if __name__ == "__main__":
+    PlugtestServerProgram.sync_main()
