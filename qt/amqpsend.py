@@ -7,7 +7,7 @@ def rabbit():
     connection = pika.BlockingConnection()
     #connection = pika.BlockingConnection()
     channel = connection.channel()
-
+    print("bijli")
     channel.queue_declare(queue='hello')
 
     channel.basic_publish(exchange='',

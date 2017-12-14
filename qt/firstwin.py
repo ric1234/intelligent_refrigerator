@@ -12,6 +12,7 @@ from PyQt5.QtGui import QImage
 from PyQt5.QtCore import QSize
 import Read as rd
 import choose as ch
+import service as ser
 class Ui_MainWindow(object):
     def setupUi(self, MainWindow):
         MainWindow.setObjectName("MainWindow")
@@ -148,5 +149,8 @@ if __name__ == "__main__":
     ui = Ui_MainWindow()
     ui.setupUi(MainWindow)
     MainWindow.show()
+##    timer = QtCore.QTimer()
+##    timer.timeout.connect(ser.update_label)
+##    timer.start(1000)  # every 1000 milliseconds
     sys.exit(app.exec_())
 

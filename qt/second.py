@@ -44,9 +44,9 @@ class Ui_MainWindow(object):
         
 
 
-#if __name__ == "__main__":
+if __name__ == "__main__":
     
-def voiceui():    
+#def voiceui():    
     import sys
     app = QtWidgets.QApplication(sys.argv)
     MainWindow = QtWidgets.QMainWindow()

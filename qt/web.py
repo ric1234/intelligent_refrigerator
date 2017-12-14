@@ -12,7 +12,7 @@ class MainWindow(QMainWindow):
         self.setCentralWidget(self.browser)
 
 
-app=QApplication(sys.argv)
-window=MainWindow()
-window.show()
-app.exec()
+##app=QApplication(sys.argv)
+##window=MainWindow()
+##window.show()
+##app.exec()
