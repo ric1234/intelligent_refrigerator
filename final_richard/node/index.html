@@ -1,0 +1,121 @@
+<!--
+<!DOCTYPE html>
+<html>
+<body>
+<h1> woopie
+<div id="demo">
+
+<h2>The XMLHttpRequest Object</h2>
+
+<button type="button"
+onclick="server()">Change Content
+</button>
+</div>
+
+<script>
+function server()
+{
+   xmlhttp = new XMLHttpRequest();
+   xmlhttp.open("GET","http://10.0.0.206:8001/getstring", true);
+   xmlhttp.onreadystatechange=function(){
+         if (xmlhttp.readyState==4 && xmlhttp.status==200){
+           string=xmlhttp.responseText;
+		document.write(string);
+         }
+   }
+   xmlhttp.send();
+}
+</script>
+</body>
+</html>
+-->
+
+
+
+
+<!-- 
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
+
+<head>
+   <title>Intelligent Refrigerator</title>
+	<body>
+  <h1> Welcome</h1>
+   <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+   <script type="text/javascript">
+
+function server()
+{
+   xmlhttp = new XMLHttpRequest();
+   xmlhttp.open("GET","http://192.168.43.70:8001/getstring", true);
+   xmlhttp.onreadystatechange=function(){
+         if (xmlhttp.readyState==4 && xmlhttp.status==200){
+           string=xmlhttp.responseText;
+           document.write(string);
+         }
+   }
+xmlhttp.send();
+document.body.innerHTML="";		//For clearing the screen
+ setTimeout('server()', 10000);
+   
+}
+
+</script>
+</head>
+
+<body onload="server()">
+   <div id="currentData" align="center">
+      <p>Loading Data...</p>
+   </div>
+</body>
+
+</html>
+-->
+
+<HTML>
+<HEAD> 
+	<META http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+	<SCRIPT type="text/javascript">
+
+		function server()
+		{
+		   xmlhttp = new XMLHttpRequest();
+		   xmlhttp.open("GET","http://169.254.33.110:8001/getstring", true);
+		   xmlhttp.onreadystatechange=function(){
+			 if (xmlhttp.readyState==4 && xmlhttp.status==200){
+			   string=xmlhttp.responseText;
+			   document.write(string);
+			 }
+		   }
+		xmlhttp.send();
+		document.body.innerHTML="";		//For clearing the screen
+		 setTimeout('server()', 10000);
+		   
+		}
+
+		function scanFridge()
+		{
+		   xmlhttp = new XMLHttpRequest();
+		   xmlhttp.open("GET","http://169.254.33.110:8001/scanfridge", true);
+		   xmlhttp.onreadystatechange=function(){
+			 if (xmlhttp.readyState==4 && xmlhttp.status==200){
+			   string=xmlhttp.responseText;
+			   document.write(string);
+			 }
+		   }
+		xmlhttp.send();
+		document.body.innerHTML="";		//For clearing the screen
+		 setTimeout('server()', 10000);
+		   
+		}
+
+	</SCRIPT>
+	<!--<BODY BACKGROUND="first_page.jpg">-->
+	<BODY BGCOLOR="#E6E6FA">
+		<FONT COLOR="BLACK"><H1 align ="center">  Welcome to the Intelligent Refrigerator RPi  </H1> </FONT>
+		<BR>
+		<button onclick="scanFridge()">Scan Fridge</button>
+		<BR>
+		<button onclick="server()"> Check the database right now</button>
+	</BODY>
+</HTML>
+
